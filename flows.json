@@ -1,0 +1,183 @@
+[
+    {
+        "id": "f68ae9c61df691b5",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "0ad12b9e27d113b7",
+        "type": "MySQLdatabase",
+        "name": "",
+        "host": "mini-map.shop",
+        "port": "3306",
+        "db": "minimap",
+        "tz": "+07:00",
+        "charset": "utf8mb4_unicode_ci"
+    },
+    {
+        "id": "b1ef6b5dee30839a",
+        "type": "mysql",
+        "z": "f68ae9c61df691b5",
+        "mydb": "0ad12b9e27d113b7",
+        "name": "",
+        "x": 540,
+        "y": 80,
+        "wires": [
+            [
+                "942ba12fa260fd97"
+            ]
+        ]
+    },
+    {
+        "id": "8c629a9c3f2833e3",
+        "type": "http in",
+        "z": "f68ae9c61df691b5",
+        "name": "",
+        "url": "login",
+        "method": "post",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "95963714b4447d20"
+            ]
+        ]
+    },
+    {
+        "id": "a2c84e0211959067",
+        "type": "http response",
+        "z": "f68ae9c61df691b5",
+        "name": "",
+        "statusCode": "",
+        "headers": {},
+        "x": 1210,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "bb6afac0e059db7f",
+        "type": "debug",
+        "z": "f68ae9c61df691b5",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1220,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "95963714b4447d20",
+        "type": "function",
+        "z": "f68ae9c61df691b5",
+        "name": "function 1",
+        "func": "// ตรวจสอบว่า payload มีค่าว่างหรือไม่\nif (!msg.payload || msg.payload.username === \"\" || msg.payload.password === \"\") {\n    msg.statusCode = 400,\n        msg.payload = {\n            error: \"Authentication failed\",\n            status: \"error\"\n        };\n    let msg2 = msg\n\n    // return msg;\n    return [null, msg2];;\n}\nelse {\n    // กำหนด SQL query เป็น string\n    msg.topic = \"SELECT * FROM users WHERE username = ? AND password = ?\";\n    msg.payload = [msg.payload.username, msg.payload.password];\n\n    return [msg, null];;\n}",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 340,
+        "y": 100,
+        "wires": [
+            [
+                "b1ef6b5dee30839a"
+            ],
+            [
+                "fb26cc60e62fd381"
+            ]
+        ]
+    },
+    {
+        "id": "942ba12fa260fd97",
+        "type": "function",
+        "z": "f68ae9c61df691b5",
+        "name": "function 2",
+        "func": "if (msg.payload.length > 0) {\n        msg.statusCode = 200;\n        msg.payload = {\n            status: \"success\",\n            data: msg.payload\n        };\n    } else {\n        msg.statusCode = 401;\n        msg.payload = {\n            status: \"error\",\n            message: \"ไม่พบข้อมูลผู้ใช้\"\n        };\n    }\n    return msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 700,
+        "y": 100,
+        "wires": [
+            [
+                "7e993a66320464da"
+            ]
+        ]
+    },
+    {
+        "id": "7e993a66320464da",
+        "type": "link out",
+        "z": "f68ae9c61df691b5",
+        "name": "http response",
+        "mode": "link",
+        "links": [
+            "62dc8b6eccfd8181"
+        ],
+        "x": 845,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "62dc8b6eccfd8181",
+        "type": "link in",
+        "z": "f68ae9c61df691b5",
+        "name": "link in 1",
+        "links": [
+            "7e993a66320464da",
+            "fb26cc60e62fd381"
+        ],
+        "x": 1105,
+        "y": 100,
+        "wires": [
+            [
+                "a2c84e0211959067",
+                "bb6afac0e059db7f"
+            ]
+        ]
+    },
+    {
+        "id": "fb26cc60e62fd381",
+        "type": "link out",
+        "z": "f68ae9c61df691b5",
+        "name": "http response",
+        "mode": "link",
+        "links": [
+            "62dc8b6eccfd8181"
+        ],
+        "x": 495,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "0dd40412fa6deeb6",
+        "type": "debug",
+        "z": "f68ae9c61df691b5",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 820,
+        "y": 380,
+        "wires": []
+    }
+]
