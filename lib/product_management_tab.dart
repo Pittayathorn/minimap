@@ -3,6 +3,16 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart'; // นำเข้า package สำหรับเลือกภาพ
+import 'package:permission_handler/permission_handler.dart';
+
+Future<void> requestPermission() async {
+  var status = await Permission.photos.request();
+  if (status.isGranted) {
+    // สิทธิ์ได้รับอนุญาตแล้ว
+  } else {
+    // ไม่ได้รับสิทธิ์
+  }
+}
 
 class ProductManagementTab extends StatefulWidget {
   @override
@@ -11,10 +21,19 @@ class ProductManagementTab extends StatefulWidget {
 
 class _ProductManagementTabState extends State<ProductManagementTab> {
   List<dynamic> _products = [];
+  List<String> categories = [
+    "Electronics",
+    "Clothing",
+    "Home",
+    "Toys"
+  ]; // รายการกลุ่มสินค้า
+  String? selectedCategory; // ตัวแปรสำหรับเก็บกลุ่มสินค้าที่เลือก
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _stockController = TextEditingController();
-
+  final TextEditingController _imagePathController =
+      TextEditingController(); // New controller for image name
+  final TextEditingController _categoryController = TextEditingController();
   final String apiUrl = 'https://web.mini-map.shop/products';
 
   // สำหรับเก็บไฟล์ภาพ
@@ -23,6 +42,7 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
   @override
   void initState() {
     super.initState();
+    requestPermission();
     _fetchProducts();
   }
 
@@ -43,40 +63,93 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
     }
   }
 
-  // ฟังก์ชันเลือกและอัพโหลดรูปภาพ
+  // ฟังก์ชันเลือกภาพจากแกลเลอรี่
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    // เลือกรูปภาพจากแกลเลอรีหรือถ่ายภาพใหม่
-    final XFile? selectedImage =
-        await picker.pickImage(source: ImageSource.gallery);
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? selectedImage =
+          await picker.pickImage(source: ImageSource.gallery);
 
-    if (selectedImage != null) {
-      setState(() {
-        _image = selectedImage;
-      });
+      if (selectedImage != null) {
+        setState(() {
+          _image = selectedImage;
+        });
+
+        // Show confirmation dialog after picking the image
+        _showImageConfirmationDialog();
+      } else {
+        print('Image selection was cancelled');
+      }
+    } catch (e) {
+      print('Error picking image: $e');
     }
   }
 
-  // ฟังก์ชันเพิ่มสินค้า
-  void _addProduct() async {
-    if (_productController.text.isEmpty ||
-        _priceController.text.isEmpty ||
-        _stockController.text.isEmpty) {
-      return;
-    }
+  void _showImageConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('ยืนยันการเลือกภาพ'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.file(
+                File(_image!.path),
+                height: 300,
+              ),
+              SizedBox(height: 10),
+              Text('คุณต้องการยืนยันภาพนี้หรือไม่?'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog when canceling
+              },
+              child: Text('ยกเลิก'),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _imagePathController.text =
+                      _image!.path; // Store file name in controller
+                });
+                Navigator.of(context).pop(); // Close the dialog when confirming
+              },
+              child: Text('ยืนยัน'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-    // เพิ่มข้อมูลการอัพโหลดรูปภาพไปพร้อมกัน (ถ้ามี)
-    var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
-    request.fields['name'] = _productController.text;
-    request.fields['price'] = _priceController.text;
-    request.fields['stock'] = _stockController.text;
+Future<void> _addProduct() async {
+  if (_productController.text.isEmpty ||
+      _priceController.text.isEmpty ||
+      _stockController.text.isEmpty ||
+      // _categoryController.text.isEmpty ||
+      _imagePathController.text.isEmpty) {
+    return;
+  }
 
-    if (_image != null) {
-      request.files
-          .add(await http.MultipartFile.fromPath('image', _image!.path));
-    }
-
-    final response = await request.send();
+  try {
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'name': _productController.text,
+        'price': _priceController.text,
+        'stock': _stockController.text,
+        // 'category': _categoryController.text,
+        'category': selectedCategory!,
+        
+        'image_url': _imagePathController.text, // URL ของภาพ
+      }),
+    );
 
     if (response.statusCode == 201) {
       setState(() {
@@ -84,19 +157,29 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
           'name': _productController.text,
           'price': _priceController.text,
           'stock': _stockController.text,
-          'image_url': _image?.path, // เพิ่ม URL ของรูปภาพ
+          'category': _categoryController.text, // เพิ่มกลุ่มสินค้าในรายการสินค้า
+          'image_url': _imagePathController.text, // URL ของภาพ
         });
       });
+
+      // เคลียร์ฟอร์มหลังจากเพิ่มสินค้า
       _productController.clear();
       _priceController.clear();
       _stockController.clear();
+      _categoryController.clear();
+      _imagePathController.clear();
       setState(() {
         _image = null; // เคลียร์รูปภาพหลังจากเพิ่มสินค้า
       });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('เพิ่มสินค้าสำเร็จ')));
     } else {
-      print('Failed to add product');
+      print('Failed to add product: ${response.statusCode}');
     }
+  } catch (e) {
+    print('Error adding product: $e');
   }
+}
 
   void _deleteProduct(int index) async {
     final productId =
@@ -144,6 +227,16 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
                 decoration: InputDecoration(labelText: 'จำนวนสินค้า'),
                 keyboardType: TextInputType.number,
               ),
+              TextField(
+                controller: _stockController,
+                decoration: InputDecoration(labelText: 'url ภาพ'),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: _stockController,
+                decoration: InputDecoration(labelText: 'กลุ่มสินค้า'),
+                keyboardType: TextInputType.number,
+              ),
             ],
           ),
           actions: [
@@ -183,6 +276,7 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
         'name': _productController.text,
         'price': _priceController.text,
         'stock': _stockController.text,
+        'category': _categoryController.text,
       }),
     );
 
@@ -192,6 +286,7 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
           'name': _productController.text,
           'price': _priceController.text,
           'stock': _stockController.text,
+          'category': _categoryController.text,
         };
       });
       ScaffoldMessenger.of(context)
@@ -250,21 +345,46 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
                 ),
               ),
             ),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: _pickImage,
-                  child: Text('อัพโหลดรูปภาพ'),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: _imagePathController,
+                  decoration: InputDecoration(labelText: 'url ภาพ'),
+                  keyboardType: TextInputType.text,
                 ),
-                if (_image != null)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Image.file(
-                      File(_image!.path),
-                      height: 100, // กำหนดความสูงของภาพตัวอย่าง
-                    ),
-                  ),
-              ],
+              ),
+            ),
+            // ฟิลด์สำหรับเลือกกลุ่มสินค้า
+            Expanded(
+              child:
+                  // ใน UI เพิ่ม TextField หรือ Dropdown สำหรับเลือก category
+              //     Padding(
+              //   padding: const EdgeInsets.all(8.0),
+              //   child: TextField(
+              //     controller: _categoryController,
+              //     decoration: InputDecoration(labelText: 'หมวดหมู่สินค้า'),
+              //   ),
+              // ),
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  hint: Text("เลือกกลุ่มสินค้า"),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      selectedCategory = newValue;
+                    });
+                  },
+                  items:
+                      categories.map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: _addProduct,
@@ -311,7 +431,9 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
                                 Text('ราคา: ฿${_products[index]['price']}'),
                                 SizedBox(height: 4),
                                 Text('จำนวน: ${_products[index]['stock']}'),
-                                SizedBox(height: 8),
+                                SizedBox(height: 4),
+                                Text(
+                                    'กลุ่มสินค้า: ${_products[index]['category']}'), // แสดงกลุ่มสินค้า
                               ],
                             ), // รูปภาพสินค้า
                             Positioned(
@@ -339,7 +461,13 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
                                   return ClipRRect(
                                     borderRadius:
                                         BorderRadius.circular(8), // ขอบมน
-                                    child: Image.network(
+                                    child:
+                                        // Image.asset(
+                                        //   'assets/images/0.png',
+                                        //   fit: BoxFit.cover, // ครอบเต็มพื้นที่
+                                        //   height: imageHeight,
+                                        // ),
+                                        Image.network(
                                       // URL ของรูปภาพสินค้า
                                       _products[index]['image_url'] ??
                                           'https://th-live-01.slatic.net/p/2eef7784122b97bba719a8efbfa1ba65.png',
@@ -359,12 +487,12 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
                                 children: [
                                   IconButton(
                                     icon: Icon(
-                                      // _products[index]['is_favorite']
-                                      true ? Icons.star : Icons.star_border,
+                                      _products[index]['is_favorite']
+                                      =='Y' ? Icons.star : Icons.star_border,
                                       color:
-                                          // _products[index]['is_favorite']
+                                          _products[index]['is_favorite']
 
-                                          true ? Colors.yellow : Colors.grey,
+                                          =='Y' ? Colors.yellow : Colors.grey,
                                     ),
                                     onPressed: () {
                                       setState(() {
@@ -395,6 +523,8 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
       ],
     );
   }
+
+
 
   void _showDeleteConfirmationDialog(int index) {
     showDialog(
