@@ -14,3 +14,20 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _pickImage,
+                  child: Text('อัพโหลดรูปภาพ'),
+                ),
+                if (_image != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.file(
+                      File(_image!.path),
+                      height: 100, // กำหนดความสูงของภาพตัวอย่าง
+                    ),
+                  ),
+              ],
+            ),

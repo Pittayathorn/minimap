@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart'; // นำเข้า package สำหรับเลือกภาพ
 
 class ProductManagementTab extends StatefulWidget {
   @override
@@ -14,6 +16,9 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
   final TextEditingController _stockController = TextEditingController();
 
   final String apiUrl = 'https://web.mini-map.shop/products';
+
+  // สำหรับเก็บไฟล์ภาพ
+  XFile? _image;
 
   @override
   void initState() {
@@ -38,6 +43,21 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
     }
   }
 
+  // ฟังก์ชันเลือกและอัพโหลดรูปภาพ
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    // เลือกรูปภาพจากแกลเลอรีหรือถ่ายภาพใหม่
+    final XFile? selectedImage =
+        await picker.pickImage(source: ImageSource.gallery);
+
+    if (selectedImage != null) {
+      setState(() {
+        _image = selectedImage;
+      });
+    }
+  }
+
+  // ฟังก์ชันเพิ่มสินค้า
   void _addProduct() async {
     if (_productController.text.isEmpty ||
         _priceController.text.isEmpty ||
@@ -45,17 +65,18 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
       return;
     }
 
-    final response = await http.post(
-      Uri.parse(apiUrl),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({
-        'name': _productController.text,
-        'price': _priceController.text,
-        'stock': _stockController.text,
-      }),
-    );
+    // เพิ่มข้อมูลการอัพโหลดรูปภาพไปพร้อมกัน (ถ้ามี)
+    var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+    request.fields['name'] = _productController.text;
+    request.fields['price'] = _priceController.text;
+    request.fields['stock'] = _stockController.text;
+
+    if (_image != null) {
+      request.files
+          .add(await http.MultipartFile.fromPath('image', _image!.path));
+    }
+
+    final response = await request.send();
 
     if (response.statusCode == 201) {
       setState(() {
@@ -63,11 +84,15 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
           'name': _productController.text,
           'price': _priceController.text,
           'stock': _stockController.text,
+          'image_url': _image?.path, // เพิ่ม URL ของรูปภาพ
         });
       });
       _productController.clear();
       _priceController.clear();
       _stockController.clear();
+      setState(() {
+        _image = null; // เคลียร์รูปภาพหลังจากเพิ่มสินค้า
+      });
     } else {
       print('Failed to add product');
     }
@@ -84,7 +109,7 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
       setState(() {
         _products.removeAt(index); // ลบสินค้าออกจาก list
         ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('ลบสินค้าสำเร็จ')));
+            .showSnackBar(SnackBar(content: Text('ลบสินค้าสำเร็จ')));
       });
     } else {
       print('Failed to delete product');
@@ -182,49 +207,186 @@ class _ProductManagementTabState extends State<ProductManagementTab> {
 
   @override
   Widget build(BuildContext context) {
+    int columns = 2;
+
+    if (MediaQuery.of(context).size.width > 1200) {
+      columns = 5;
+    } else if (MediaQuery.of(context).size.width > 800) {
+      columns = 4;
+    } else if (MediaQuery.of(context).size.width > 640) {
+      columns = 3;
+    }
+
     return Column(
       children: [
-        TextField(
-          controller: _productController,
-          decoration: InputDecoration(labelText: 'เพิ่มสินค้า'),
+        Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: _productController,
+                  decoration: InputDecoration(labelText: 'เพิ่มสินค้า'),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: _priceController,
+                  decoration: InputDecoration(labelText: 'ราคา'),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  controller: _stockController,
+                  decoration: InputDecoration(labelText: 'จำนวนสินค้า'),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _pickImage,
+                  child: Text('อัพโหลดรูปภาพ'),
+                ),
+                if (_image != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.file(
+                      File(_image!.path),
+                      height: 100, // กำหนดความสูงของภาพตัวอย่าง
+                    ),
+                  ),
+              ],
+            ),
+            ElevatedButton(
+              onPressed: _addProduct,
+              child: Text('เพิ่มสินค้า'),
+            ),
+          ],
         ),
-        TextField(
-          controller: _priceController,
-          decoration: InputDecoration(labelText: 'ราคา'),
-          keyboardType: TextInputType.number,
-        ),
-        TextField(
-          controller: _stockController,
-          decoration: InputDecoration(labelText: 'จำนวนสินค้า'),
-          keyboardType: TextInputType.number,
-        ),
-        ElevatedButton(
-          onPressed: _addProduct,
-          child: Text('เพิ่มสินค้า'),
-        ),
+
+        // เพิ่มปุ่มสำหรับการอัพโหลดรูปภาพ
+
         Expanded(
           child: _products.isEmpty
               ? Center(child: CircularProgressIndicator())
-              : ListView.builder(
+              : GridView.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 8.0,
+                    mainAxisSpacing: 8.0,
+                    childAspectRatio: 1.0,
+                  ),
                   itemCount: _products.length,
                   itemBuilder: (context, index) {
-                    return ListTile(
-                      title: Text(
-                          '${_products[index]['name']} - ฿${_products[index]['price']} - จำนวน: ${_products[index]['stock']}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.edit),
-                            onPressed: () =>
-                                _editProduct(index), // เรียกใช้ฟังก์ชันแก้ไข
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.delete),
-                            onPressed: () =>
-                                _showDeleteConfirmationDialog(index),
-                          ),
-                        ],
+                    return Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      margin: EdgeInsets.all(8),
+                      elevation: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Stack(
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_products[index]['name']}',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text('ราคา: ฿${_products[index]['price']}'),
+                                SizedBox(height: 4),
+                                Text('จำนวน: ${_products[index]['stock']}'),
+                                SizedBox(height: 8),
+                              ],
+                            ), // รูปภาพสินค้า
+                            Positioned(
+                              left: 0,
+                              bottom: 0,
+                              right: 0,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  // กำหนดค่าความสูงของรูปภาพตามขนาดหน้าจอ
+                                  double imageHeight = 100; // ค่าเริ่มต้น
+                                  if (MediaQuery.of(context).size.width >
+                                      1200) {
+                                    imageHeight =
+                                        220; // เมื่อหน้าจอกว้างกว่า 1200px ความสูงของรูปภาพเป็น 200
+                                  } else if (MediaQuery.of(context).size.width >
+                                      800) {
+                                    imageHeight =
+                                        140; // เมื่อหน้าจอกว้างกว่า 640px แต่ไม่เกิน 1200px ความสูงของรูปภาพเป็น 150
+                                  } else if (MediaQuery.of(context).size.width >
+                                      640) {
+                                    imageHeight =
+                                        115; // เมื่อหน้าจอกว้างกว่า 640px แต่ไม่เกิน 1200px ความสูงของรูปภาพเป็น 150
+                                  }
+
+                                  return ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(8), // ขอบมน
+                                    child: Image.network(
+                                      // URL ของรูปภาพสินค้า
+                                      _products[index]['image_url'] ??
+                                          'https://th-live-01.slatic.net/p/2eef7784122b97bba719a8efbfa1ba65.png',
+                                      fit: BoxFit.cover, // ครอบเต็มพื้นที่
+                                      height:
+                                          imageHeight, // กำหนดความสูงของรูปภาพ
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            // ปุ่มแก้ไข, ลบ และ ติดดาวอยู่มุมขวาบนของการ์ด
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      // _products[index]['is_favorite']
+                                      true ? Icons.star : Icons.star_border,
+                                      color:
+                                          // _products[index]['is_favorite']
+
+                                          true ? Colors.yellow : Colors.grey,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _products[index]['is_favorite'] =
+                                            !_products[index]['is_favorite'];
+                                      });
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.edit),
+                                    onPressed: () => _editProduct(index),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.delete),
+                                    onPressed: () =>
+                                        _showDeleteConfirmationDialog(index),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
