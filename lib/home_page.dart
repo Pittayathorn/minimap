@@ -101,8 +101,7 @@ class _HomePageState extends State<HomePage> {
             // ✅ ส่งค่า IMEI ใหม่ทุกครั้งที่ค่า _currentImei เปลี่ยน
             DevicePage(imei: _currentImei, key: ValueKey(_currentImei)),
             GraphPage(imei: _currentImei, key: ValueKey(_currentImei)),
-
-            const SoundPage(),
+            SoundPage(imei: _currentImei, key: ValueKey(_currentImei)),
           ],
         ),
       ),
