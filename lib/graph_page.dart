@@ -209,7 +209,7 @@ class _GraphPageState extends State<GraphPage> {
                 elevation: 4,
                 margin: const EdgeInsets.all(8),
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.all(25.0),
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _data.isEmpty
@@ -217,7 +217,15 @@ class _GraphPageState extends State<GraphPage> {
                           : LineChart(
                               LineChartData(
                                 gridData: FlGridData(show: true),
-                                titlesData: FlTitlesData(show: true),
+                                titlesData: FlTitlesData(show: true,topTitles: AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                ),bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(showTitles: true),
+                                ),leftTitles: AxisTitles(
+                                  sideTitles: SideTitles(showTitles: true,reservedSize: 30,minIncluded: false),
+                                ),rightTitles: AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false),
+                                )),
                                 borderData: FlBorderData(show: true),
                                 lineBarsData: [
                                   LineChartBarData(
